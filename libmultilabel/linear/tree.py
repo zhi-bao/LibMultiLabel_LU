@@ -27,6 +27,7 @@ class Node:
         """
         self.label_map = label_map
         self.children = children
+        self.is_root = False
 
     def isLeaf(self) -> bool:
         return len(self.children) == 0
@@ -101,7 +102,7 @@ class TreeModel:
             next_level = []
 
         num_labels = len(self.root.label_map)
-        scores = np.full(num_labels, -np.inf)
+        scores = np.full(num_labels, 0)
         for node, score in cur_level:
             slice = np.s_[self.weight_map[node.index] : self.weight_map[node.index + 1]]
             pred = instance_preds[slice]
@@ -134,6 +135,7 @@ def train_tree(
     label_representation = (y.T * x).tocsr()
     label_representation = sklearn.preprocessing.normalize(label_representation, norm="l2", axis=1)
     root = _build_tree(label_representation, np.arange(y.shape[1]), 0, K, dmax)
+    root.is_root = True
 
     num_nodes = 0
     # Both type(x) and type(y) are sparse.csr_matrix
@@ -161,7 +163,10 @@ def train_tree(
     pbar = tqdm(total=num_nodes, disable=not verbose)
 
     def visit(node):
-        relevant_instances = y[:, node.label_map].getnnz(axis=1) > 0
+        if node.is_root:
+            relevant_instances = y[:, node.label_map].getnnz(axis=1) >= 0
+        else:
+            relevant_instances = y[:, node.label_map].getnnz(axis=1) > 0
         _train_node(y[relevant_instances], x[relevant_instances], options, node)
         pbar.update()
 
