@@ -164,10 +164,10 @@ def train_tree(
 
     def visit(node):
         if node.is_root:
-            relevant_instances = y[:, node.label_map].getnnz(axis=1) >= 0
+            _train_node(y, x, options, node)
         else:
             relevant_instances = y[:, node.label_map].getnnz(axis=1) > 0
-        _train_node(y[relevant_instances], x[relevant_instances], options, node)
+            _train_node(y[relevant_instances], x[relevant_instances], options, node)
         pbar.update()
 
     root.dfs(visit)
