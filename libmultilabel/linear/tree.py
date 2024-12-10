@@ -58,7 +58,7 @@ class TreeModel:
         x: sparse.csr_matrix,
         beam_width: int = 10,
     ) -> np.ndarray:
-        """Calculates the decision values associated with x.
+        """Calculates the probability estimates associated with x.
 
         Args:
             x (sparse.csr_matrix): A matrix with dimension number of instances * number of features.
@@ -72,10 +72,10 @@ class TreeModel:
         return np.vstack([self._beam_search(all_preds[i], beam_width) for i in range(all_preds.shape[0])])
 
     def _beam_search(self, instance_preds: np.ndarray, beam_width: int) -> np.ndarray:
-        """Predict with beam search using cached decision values for a single instance.
+        """Predict with beam search using cached probability estimates for a single instance.
 
         Args:
-            instance_preds (np.ndarray): A vector of cached decision values of each node, has dimension number of labels + total number of metalabels.
+            instance_preds (np.ndarray): A vector of cached probability estimates of each node, has dimension number of labels + total number of metalabels.
             beam_width (int): Number of candidates considered.
 
         Returns:
@@ -101,7 +101,7 @@ class TreeModel:
             next_level = []
 
         num_labels = len(self.root.label_map)
-        scores = np.full(num_labels, -np.inf)
+        scores = np.full(num_labels, 0)
         for node, score in cur_level:
             slice = np.s_[self.weight_map[node.index] : self.weight_map[node.index + 1]]
             pred = instance_preds[slice]
