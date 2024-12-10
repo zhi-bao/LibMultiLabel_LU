@@ -40,11 +40,11 @@ and then create a virtual enviroment as follows.
     conda create -n LibMultiLabel python=3.8
     conda activate LibMultiLabel
 
-* Clone `LibMultiLabel <https://github.com/ASUS-AICS/LibMultiLabel>`_.
+* Clone `LibMultiLabel <https://github.com/ntumlgroup/LibMultiLabel>`_.
 
 .. code-block:: bash
 
-    git clone https://github.com/ASUS-AICS/LibMultiLabel.git
+    git clone https://github.com/ntumlgroup/LibMultiLabel.git
     cd LibMultiLabel
 
 * Install the default dependencies with:

@@ -6,7 +6,7 @@ or directly passed as flags. If an option exists in both the config
 file and flags, flags take precedent and override the config file.
 
 The config file is a yaml file, examples may be found in
-`example_config <https://github.com/ASUS-AICS/LibMultiLabel/tree/master/example_config>`_.
+`example_config <https://github.com/ntumlgroup/LibMultiLabel/tree/master/example_config>`_.
 In the config file, each key-value pair ``key: value`` corresponds to
 passing the flag ``--key value``. The following example sets the training data path
 in the config file
