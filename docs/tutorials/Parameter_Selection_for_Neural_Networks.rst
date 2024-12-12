@@ -10,7 +10,7 @@ Direct Trying Some Parameters
 -----------------------------
 
 First, train a BiGRU model with the
-`default configuration file <https://github.com/ASUS-AICS/LibMultiLabel/blob/master/example_config/EUR-Lex/bigru_lwan.yml>`_
+`default configuration file <https://github.com/ntumlgroup/LibMultiLabel/blob/master/example_config/EUR-Lex/bigru_lwan.yml>`_
 with a little modification on the learning rate.
 Some important parameters are listed as follows.
 
@@ -92,7 +92,7 @@ To save time, LibMultiLabel has incorporated some early stopping techniques impl
 Here we demonstrate an example of applying an `ASHA (Asynchronous Successive Halving Algorithm) Scheduler <https://arxiv.org/abs/1810.05934>`_.
 
 First, uncomment the following lines in the
-`configuration file <https://github.com/ASUS-AICS/LibMultiLabel/blob/master/example_config/EUR-Lex/bigru_lwan_tune.yml>`_:
+`configuration file <https://github.com/ntumlgroup/LibMultiLabel/blob/master/example_config/EUR-Lex/bigru_lwan_tune.yml>`_:
 
 .. code-block:: bash
 

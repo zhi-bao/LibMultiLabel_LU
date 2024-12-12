@@ -19,7 +19,6 @@ For practical use, please see the `Tutorials <tutorial.html>`_. For Implementati
    library_index
    tutorial
    Implementation Document <https://www.csie.ntu.edu.tw/~cjlin/papers/libmultilabel/libmultilabel_implementation.pdf>
-   papers
    
 
 ..
