@@ -27,6 +27,7 @@ class Node:
         """
         self.label_map = label_map
         self.children = children
+        self.is_root = False
 
     def isLeaf(self) -> bool:
         return len(self.children) == 0
@@ -134,6 +135,7 @@ def train_tree(
     label_representation = (y.T * x).tocsr()
     label_representation = sklearn.preprocessing.normalize(label_representation, norm="l2", axis=1)
     root = _build_tree(label_representation, np.arange(y.shape[1]), 0, K, dmax)
+    root.is_root = True
 
     num_nodes = 0
     # Both type(x) and type(y) are sparse.csr_matrix
@@ -161,8 +163,11 @@ def train_tree(
     pbar = tqdm(total=num_nodes, disable=not verbose)
 
     def visit(node):
-        relevant_instances = y[:, node.label_map].getnnz(axis=1) > 0
-        _train_node(y[relevant_instances], x[relevant_instances], options, node)
+        if node.is_root:
+            _train_node(y, x, options, node)
+        else:
+            relevant_instances = y[:, node.label_map].getnnz(axis=1) > 0
+            _train_node(y[relevant_instances], x[relevant_instances], options, node)
         pbar.update()
 
     root.dfs(visit)
