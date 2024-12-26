@@ -95,18 +95,18 @@ class TreeModel:
                     continue
                 slice = np.s_[self.weight_map[node.index] : self.weight_map[node.index + 1]]
                 pred = instance_preds[slice]
-                children_score = score - np.maximum(0, 1 - pred) ** 2
+                children_score = score - np.square( np.maximum(0, 1 - pred) )
                 next_level.extend(zip(node.children, children_score.tolist()))
 
             cur_level = sorted(next_level, key=lambda pair: -pair[1])[:beam_width]
             next_level = []
 
         num_labels = len(self.root.label_map)
-        scores = np.full(num_labels, 0)
+        scores = np.full(num_labels, 0.0)
         for node, score in cur_level:
             slice = np.s_[self.weight_map[node.index] : self.weight_map[node.index + 1]]
             pred = instance_preds[slice]
-            scores[node.label_map] = np.exp(score - np.maximum(0, 1 - pred) ** 2)
+            scores[node.label_map] = np.exp( score - np.square( np.maximum(0, 1 - pred) ) )
         return scores
 
 
