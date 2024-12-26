@@ -95,7 +95,7 @@ class TreeModel:
                     continue
                 slice = np.s_[self.weight_map[node.index] : self.weight_map[node.index + 1]]
                 pred = instance_preds[slice]
-                children_score = score - np.square( np.maximum(0, 1 - pred) )
+                children_score = score - np.square(np.maximum(0, 1 - pred))
                 next_level.extend(zip(node.children, children_score.tolist()))
 
             cur_level = sorted(next_level, key=lambda pair: -pair[1])[:beam_width]
@@ -106,7 +106,7 @@ class TreeModel:
         for node, score in cur_level:
             slice = np.s_[self.weight_map[node.index] : self.weight_map[node.index + 1]]
             pred = instance_preds[slice]
-            scores[node.label_map] = np.exp( score - np.square( np.maximum(0, 1 - pred) ) )
+            scores[node.label_map] = np.exp(score - np.square(np.maximum(0, 1 - pred)))
         return scores
 
 
@@ -151,14 +151,14 @@ def train_tree(
     root.dfs(count)
 
     model_size = get_estimated_model_size(root)
-    print(f'The estimated tree model size is: {model_size / (1024**3):.3f} GB')
+    print(f"The estimated tree model size is: {model_size / (1024**3):.3f} GB")
 
     # Calculate the total memory (excluding swap) on the local machine
-    total_memory = psutil.virtual_memory().total 
-    print(f'Your system memory is: {total_memory / (1024**3):.3f} GB')
+    total_memory = psutil.virtual_memory().total
+    print(f"Your system memory is: {total_memory / (1024**3):.3f} GB")
 
-    if (total_memory <= model_size):
-        raise MemoryError(f'Not enough memory to train the model.')
+    if total_memory <= model_size:
+        raise MemoryError(f"Not enough memory to train the model.")
 
     pbar = tqdm(total=num_nodes, disable=not verbose)
 
@@ -221,7 +221,7 @@ def get_estimated_model_size(root):
 
     def collect_stat(node: Node):
         nonlocal total_num_weights
-        
+
         if node.isLeaf():
             total_num_weights += len(node.label_map) * node.num_features_used
         else:
@@ -231,7 +231,7 @@ def get_estimated_model_size(root):
 
     # 16 is because when storing sparse matrices, indices (int64) require 8 bytes and floats require 8 bytes
     # Our study showed that among the used features of every binary classification problem, on average no more than 2/3 of weights obtained by the dual coordinate descent method are non-zeros.
-    return total_num_weights * 16 * 2/3
+    return total_num_weights * 16 * 2 / 3
 
 
 def _train_node(y: sparse.csr_matrix, x: sparse.csr_matrix, options: str, node: Node):
