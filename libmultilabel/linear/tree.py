@@ -27,6 +27,7 @@ class Node:
         """
         self.label_map = label_map
         self.children = children
+        self.is_root = False
 
     def isLeaf(self) -> bool:
         return len(self.children) == 0
@@ -58,7 +59,7 @@ class TreeModel:
         x: sparse.csr_matrix,
         beam_width: int = 10,
     ) -> np.ndarray:
-        """Calculates the decision values associated with x.
+        """Calculates the probability estimates associated with x.
 
         Args:
             x (sparse.csr_matrix): A matrix with dimension number of instances * number of features.
@@ -72,10 +73,10 @@ class TreeModel:
         return np.vstack([self._beam_search(all_preds[i], beam_width) for i in range(all_preds.shape[0])])
 
     def _beam_search(self, instance_preds: np.ndarray, beam_width: int) -> np.ndarray:
-        """Predict with beam search using cached decision values for a single instance.
+        """Predict with beam search using cached probability estimates for a single instance.
 
         Args:
-            instance_preds (np.ndarray): A vector of cached decision values of each node, has dimension number of labels + total number of metalabels.
+            instance_preds (np.ndarray): A vector of cached probability estimates of each node, has dimension number of labels + total number of metalabels.
             beam_width (int): Number of candidates considered.
 
         Returns:
@@ -94,18 +95,18 @@ class TreeModel:
                     continue
                 slice = np.s_[self.weight_map[node.index] : self.weight_map[node.index + 1]]
                 pred = instance_preds[slice]
-                children_score = score - np.maximum(0, 1 - pred) ** 2
+                children_score = score - np.square(np.maximum(0, 1 - pred))
                 next_level.extend(zip(node.children, children_score.tolist()))
 
             cur_level = sorted(next_level, key=lambda pair: -pair[1])[:beam_width]
             next_level = []
 
         num_labels = len(self.root.label_map)
-        scores = np.full(num_labels, -np.inf)
+        scores = np.full(num_labels, 0.0)
         for node, score in cur_level:
             slice = np.s_[self.weight_map[node.index] : self.weight_map[node.index + 1]]
             pred = instance_preds[slice]
-            scores[node.label_map] = np.exp(score - np.maximum(0, 1 - pred) ** 2)
+            scores[node.label_map] = np.exp(score - np.square(np.maximum(0, 1 - pred)))
         return scores
 
 
@@ -134,6 +135,7 @@ def train_tree(
     label_representation = (y.T * x).tocsr()
     label_representation = sklearn.preprocessing.normalize(label_representation, norm="l2", axis=1)
     root = _build_tree(label_representation, np.arange(y.shape[1]), 0, K, dmax)
+    root.is_root = True
 
     num_nodes = 0
     # Both type(x) and type(y) are sparse.csr_matrix
@@ -149,20 +151,23 @@ def train_tree(
     root.dfs(count)
 
     model_size = get_estimated_model_size(root)
-    print(f'The estimated tree model size is: {model_size / (1024**3):.3f} GB')
+    print(f"The estimated tree model size is: {model_size / (1024**3):.3f} GB")
 
     # Calculate the total memory (excluding swap) on the local machine
-    total_memory = psutil.virtual_memory().total 
-    print(f'Your system memory is: {total_memory / (1024**3):.3f} GB')
+    total_memory = psutil.virtual_memory().total
+    print(f"Your system memory is: {total_memory / (1024**3):.3f} GB")
 
-    if (total_memory <= model_size):
-        raise MemoryError(f'Not enough memory to train the model.')
+    if total_memory <= model_size:
+        raise MemoryError(f"Not enough memory to train the model.")
 
     pbar = tqdm(total=num_nodes, disable=not verbose)
 
     def visit(node):
-        relevant_instances = y[:, node.label_map].getnnz(axis=1) > 0
-        _train_node(y[relevant_instances], x[relevant_instances], options, node)
+        if node.is_root:
+            _train_node(y, x, options, node)
+        else:
+            relevant_instances = y[:, node.label_map].getnnz(axis=1) > 0
+            _train_node(y[relevant_instances], x[relevant_instances], options, node)
         pbar.update()
 
     root.dfs(visit)
@@ -216,7 +221,7 @@ def get_estimated_model_size(root):
 
     def collect_stat(node: Node):
         nonlocal total_num_weights
-        
+
         if node.isLeaf():
             total_num_weights += len(node.label_map) * node.num_features_used
         else:
@@ -226,7 +231,7 @@ def get_estimated_model_size(root):
 
     # 16 is because when storing sparse matrices, indices (int64) require 8 bytes and floats require 8 bytes
     # Our study showed that among the used features of every binary classification problem, on average no more than 2/3 of weights obtained by the dual coordinate descent method are non-zeros.
-    return total_num_weights * 16 * 2/3
+    return total_num_weights * 16 * 2 / 3
 
 
 def _train_node(y: sparse.csr_matrix, x: sparse.csr_matrix, options: str, node: Node):
