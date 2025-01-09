@@ -5,7 +5,7 @@ import os
 
 import numpy as np
 import scipy.sparse as sparse
-from liblinear.liblinearutil import train
+from liblinear.liblinearutil import train, problem, parameter
 from tqdm import tqdm
 
 __all__ = [
@@ -333,8 +333,11 @@ def _do_train(y: np.ndarray, x: sparse.csr_matrix, options: str) -> np.matrix:
     if y.shape[0] == 0:
         return np.matrix(np.zeros((x.shape[1], 1)))
 
+    prob = problem(y, x)
+    param = parameter(options)
+    param.w_recalc = True   # only works for solving L1/L2-SVM dual
     with silent_stderr():
-        model = train(y, x, options)
+        model = train(prob, param)
 
     w = np.ctypeslib.as_array(model.w, (x.shape[1], 1))
     w = np.asmatrix(w)
@@ -592,8 +595,11 @@ def train_binary_and_multiclass(
         Invalid dataset. Only multi-class dataset is allowed."""
     y = np.squeeze(nonzero_label_ids)
 
+    prob = problem(y, x)
+    param = parameter(options)
+    param.w_recalc = True
     with silent_stderr():
-        model = train(y, x, options)
+        model = train(prob, param)
 
     # Labels appeared in training set; length may be smaller than num_labels
     train_labels = np.array(model.get_labels(), dtype="int")
