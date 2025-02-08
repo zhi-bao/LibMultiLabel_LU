@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable
+from typing import Callable, Optional
 
 import numpy as np
 import scipy.sparse as sparse
@@ -47,12 +47,14 @@ class TreeModel:
         root: Node,
         flat_model: linear.FlatModel,
         weight_map: np.ndarray,
+        subtrees: Optional[list[TreeModel]] = None, 
     ):
         self.name = "tree"
         self.root = root
         self.flat_model = flat_model
         self.weight_map = weight_map
         self.multiclass = False
+        self.subtrees = subtrees if subtrees else []
 
     def predict_values(
         self,
@@ -69,9 +71,49 @@ class TreeModel:
             np.ndarray: A matrix with dimension number of instances * number of classes.
         """
         # number of instances * number of labels + total number of metalabels
-        all_preds = linear.predict_values(self.flat_model, x)
+        all_preds = self._prune_tree_predictions(x, beam_width)
         return np.vstack([self._beam_search(all_preds[i], beam_width) for i in range(all_preds.shape[0])])
 
+
+    def _prune_tree_predictions(self, x: sparse.csr_matrix, beam_width: int) -> np.ndarray:
+        """Calculates the decision values associated with x.
+        Since beam width is smaller than number of nodes at the same level, except for the level containing the root, 
+        many nodes may become unreachable, leading to unnecessary computations.
+        To reduce unnecessary computations, pruning is applied.
+
+        Args:
+            x (sparse.csr_matrix): A matrix with dimension number of instances * number of features.
+            beam_width (int): Number of top candidate branches considered for prediction.
+
+        Returns:
+            np.ndarray: A matrix with dimension number of instances * (number of labels + total number of metalabels).
+        """
+        # Initialize space for all predictions with negative infinity
+        num_instances, num_labels = x.shape[0], self.weight_map[-1]
+        all_preds= np.full((num_instances, num_labels), np.NINF)
+
+        # Calculate root decision value and scores
+        root_preds = linear.predict_values(self.flat_model, x)
+        children_scores = 0.0 - np.maximum(0, 1 - root_preds) ** 2
+
+        # Find the top k branches for each instance
+        top_k_indices = np.argsort(-children_scores, axis=1, kind='stable')[:, :beam_width]
+
+        # Building a mapping from branch to instances
+        branch_to_instances = {branch: np.where(top_k_indices == branch)[0] for branch in np.unique(top_k_indices)}
+
+        slice = np.s_[:root_preds.shape[0], :root_preds.shape[-1]]
+        all_preds[slice] = root_preds
+
+        # Calculate predictions for each branch using its corresponding instances
+        for branch, instances in branch_to_instances.items():
+            child = self.subtrees[branch]
+            reduced_instances = x[np.s_[instances], :]
+            slice = np.s_[instances, self.weight_map[child.root.index]:self.weight_map[child.root.index]+child.weight_map[-1]]
+            all_preds[slice] = linear.predict_values(child.flat_model, reduced_instances)
+
+        return all_preds
+            
     def _beam_search(self, instance_preds: np.ndarray, beam_width: int) -> np.ndarray:
         """Predict with beam search using cached probability estimates for a single instance.
 
@@ -162,7 +204,12 @@ def train_tree(
 
     pbar = tqdm(total=num_nodes, disable=not verbose)
 
+    index = 0
+
     def visit(node):
+        nonlocal index
+        node.index = index
+        index += 1
         if node.is_root:
             _train_node(y, x, options, node)
         else:
@@ -173,9 +220,25 @@ def train_tree(
     root.dfs(visit)
     pbar.close()
 
-    flat_model, weight_map = _flatten_model(root)
-    return TreeModel(root, flat_model, weight_map)
+    # Build a distributed Tree Model from the bottom up
+    subtrees = []
+    weight_map = [0, root.model.weights.shape[-1]]
 
+    for child in root.children:
+        child_flat_model, child_weight_map = _flatten_model(child)
+        subtrees.append(TreeModel(child, child_flat_model, child_weight_map))
+        weight_map = np.concatenate([weight_map, weight_map[-1] + child_weight_map[1:]])
+    
+    flatten_model = linear.FlatModel(
+                name="root-flattened-tree",
+                weights=root.model.__dict__.pop("weights").tocsr(),
+                bias=root.model.bias,
+                thresholds=0,
+                multiclass=False,
+            )
+
+    return TreeModel(root, flatten_model, weight_map, subtrees)
+    
 
 def _build_tree(label_representation: sparse.csr_matrix, label_map: np.ndarray, d: int, K: int, dmax: int) -> Node:
     """Builds the tree recursively by kmeans clustering.
@@ -274,22 +337,18 @@ def _flatten_model(root: Node) -> tuple[linear.FlatModel, np.ndarray]:
     Returns:
         tuple[linear.FlatModel, np.ndarray]: The flattened model and the ranges of each node.
     """
-    index = 0
     weights = []
     bias = root.model.bias
 
     def visit(node):
         assert bias == node.model.bias
-        nonlocal index
-        node.index = index
-        index += 1
         weights.append(node.model.__dict__.pop("weights"))
 
     root.dfs(visit)
 
     model = linear.FlatModel(
         name="flattened-tree",
-        weights=sparse.hstack(weights, "csc"),
+        weights=sparse.hstack(weights, "csc").tocsr(),
         bias=bias,
         thresholds=0,
         multiclass=False,
