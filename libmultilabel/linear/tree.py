@@ -97,25 +97,26 @@ class TreeModel:
         root_preds = linear.predict_values(self.flat_model, x)
         children_scores = 0.0 - np.maximum(0, 1 - root_preds) ** 2
 
-        # Find the top k subtree for each instance
-        top_k_indices = np.argsort(-children_scores, axis=1, kind='stable')[:, :beam_width]
-
-        # Building a mapping from subtree to instances
-        subtree_to_instances = {subtree: np.where(top_k_indices == subtree)[0] for subtree in np.unique(top_k_indices)}
-
         slice = np.s_[:num_instances, self.weight_map[self.root.index]: self.weight_map[self.root.index+1]]
-        all_preds[slice] = root_preds
+        all_preds[slice] = root_preds   
+        
+        if not self.root.isLeaf():
+            # Find the top k subtree for each instance
+            top_k_indices = np.argsort(-children_scores, axis=1, kind='stable')[:, :beam_width]
 
-        # Calculate predictions for each subtree with its corresponding instances
-        for subtree, instances in subtree_to_instances.items():
-            current_subtree = self.subtrees[subtree]
-            reduced_instances = x[np.s_[instances], :]
-            # Locate the position of the subtree root in the weight mapping of all nodes.
-            subtree_weights_start = self.weight_map[current_subtree.root.index]
-            subtree_weights_end = subtree_weights_start+current_subtree.flat_model.weights.shape[1]
+            # Building a mapping from subtree to instances
+            subtree_to_instances = {subtree: np.where(top_k_indices == subtree)[0] for subtree in np.unique(top_k_indices)}
 
-            slice = np.s_[instances, subtree_weights_start:subtree_weights_end]
-            all_preds[slice] = linear.predict_values(current_subtree.flat_model, reduced_instances)
+            # Calculate predictions for each subtree with its corresponding instances
+            for subtree, instances in subtree_to_instances.items():
+                current_subtree = self.subtrees[subtree]
+                reduced_instances = x[np.s_[instances], :]
+                # Locate the position of the subtree root in the weight mapping of all nodes.
+                subtree_weights_start = self.weight_map[current_subtree.root.index]
+                subtree_weights_end = subtree_weights_start+current_subtree.flat_model.weights.shape[1]
+
+                slice = np.s_[instances, subtree_weights_start:subtree_weights_end]
+                all_preds[slice] = linear.predict_values(current_subtree.flat_model, reduced_instances)
 
         return all_preds
 
