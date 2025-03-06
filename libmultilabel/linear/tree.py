@@ -172,7 +172,6 @@ def train_tree(
     options: str = "",
     K=100,
     dmax=10,
-    path=None,
     verbose: bool = True,
 ) -> TreeModel:
     """Trains a linear model for multi-label data using a divide-and-conquer strategy.
