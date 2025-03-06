@@ -8,6 +8,7 @@ import sklearn.cluster
 import sklearn.preprocessing
 from tqdm import tqdm
 import psutil
+from dataclasses import dataclass
 
 from . import linear
 
@@ -158,17 +159,11 @@ class TreeModel:
             scores[node.label_map] = np.exp(score - np.square(np.maximum(0, 1 - pred)))
         return scores
 
-
+@dataclass(frozen=True)
 class SubTree:
     """Represents a subtree with its root node and the linear flattened model which builts from the subtree's root."""
-
-    def __init__(
-        self,
-        root: Node,
-        flat_model: linear.FlatModel,
-    ):
-        self.root = root
-        self.flat_model = flat_model
+    root: Node
+    flat_model: linear.FlatModel
 
 
 def train_tree(
@@ -177,6 +172,7 @@ def train_tree(
     options: str = "",
     K=100,
     dmax=10,
+    path=None,
     verbose: bool = True,
 ) -> TreeModel:
     """Trains a linear model for multi-label data using a divide-and-conquer strategy.
