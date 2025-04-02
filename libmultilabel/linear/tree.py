@@ -8,7 +8,6 @@ import sklearn.cluster
 import sklearn.preprocessing
 from tqdm import tqdm
 import psutil
-from more_itertools import pairwise
 
 from . import linear
 
@@ -252,6 +251,7 @@ def train_tree(
 
     root.dfs(visit)
     pbar.close()
+    
     flat_model, weight_map = _flatten_model(root)
     return TreeModel(root, flat_model, weight_map)
 
