@@ -8,7 +8,7 @@ import sklearn.cluster
 import sklearn.preprocessing
 from tqdm import tqdm
 import psutil
-import itertools
+from more_itertools import pairwise
 
 from . import linear
 
@@ -89,10 +89,10 @@ class TreeModel:
                                     multiclass=False,
                                 )
             
-            self.subtrees_weights = []
+            self.subtrees = []
             subtree_indices = [self.weight_map[child.index] for child in self.root.children] + [self.weight_map[-1]]
             
-            for subtree_start, subtree_end in itertools.pairwise(subtree_indices):
+            for subtree_start, subtree_end in zip(subtree_indices, subtree_indices[1:]):
                 slice = np.s_[:, subtree_start:subtree_end]
                 subtree_flatmodel = linear.FlatModel(
                                     name="subtree-flattened-tree",
