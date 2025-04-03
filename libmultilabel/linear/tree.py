@@ -69,38 +69,41 @@ class TreeModel:
             np.ndarray: A matrix with dimension number of instances * number of classes.
         """
         # number of instances * number of labels + total number of metalabels
-        self._preprocess_beam_search()
-        all_preds = self._prune_tree_predictions(x, beam_width)
+        if beam_width >= len(self.root.children):
+            all_preds = linear.predict_values(self.flat_model, x)
+        else:
+            self._preprocess_beam_search()
+            all_preds = self._prune_tree_predictions(x, beam_width)
         return np.vstack([self._beam_search(all_preds[i], beam_width) for i in range(all_preds.shape[0])])
 
     def _preprocess_beam_search(self):
-        """ Preprocess the flattened model for beam search.
+        """Preprocess the flattened model for beam search.
 
         This function extracts the weights for the root node and its children into separate FlatModel instances for efficient beam search traversal in Python.
         """
-        if not hasattr(self, "root_weights"):
-            slice = np.s_[:, self.weight_map[self.root.index]:self.weight_map[self.root.index+1]]
-            self.root_weights = linear.FlatModel(
-                                    name="root-flattened-tree",
-                                    weights=self.flat_model.weights[slice],
-                                    bias=self.root.model.bias,
-                                    thresholds=0,
-                                    multiclass=False,
-                                )
-            
-            self.subtrees = []
+        if not hasattr(self, "root_model"):
+            slice = np.s_[:, self.weight_map[self.root.index] : self.weight_map[self.root.index + 1]]
+            self.root_model = linear.FlatModel(
+                name="root-flattened-tree",
+                weights=self.flat_model.weights[slice].tocsr(),
+                bias=self.root.model.bias,
+                thresholds=0,
+                multiclass=False,
+            )
+
+            self.subtree_models = []
             subtree_indices = [self.weight_map[child.index] for child in self.root.children] + [self.weight_map[-1]]
-            
+
             for subtree_start, subtree_end in zip(subtree_indices, subtree_indices[1:]):
                 slice = np.s_[:, subtree_start:subtree_end]
                 subtree_flatmodel = linear.FlatModel(
-                                    name="subtree-flattened-tree",
-                                    weights=self.flat_model.weights[slice],
-                                    bias=self.root.model.bias,
-                                    thresholds=0,
-                                    multiclass=False,
-                                )
-                self.subtrees.append(subtree_flatmodel)
+                    name="subtree-flattened-tree",
+                    weights=self.flat_model.weights[slice].tocsr(),
+                    bias=self.root.model.bias,
+                    thresholds=0,
+                    multiclass=False,
+                )
+                self.subtree_models.append(subtree_flatmodel)
 
     def _prune_tree_predictions(self, x: sparse.csr_matrix, beam_width: int) -> np.ndarray:
         """Calculates the decision values associated with x.
@@ -122,7 +125,7 @@ class TreeModel:
         all_preds = np.full((num_instances, num_labels), np.NINF)
 
         # Calculate root decision value and scores
-        root_preds = linear.predict_values(self.root_weights, x)
+        root_preds = linear.predict_values(self.root_model, x)
         children_scores = 0.0 - np.maximum(0, 1 - root_preds) ** 2
 
         slice = np.s_[:num_instances, self.weight_map[self.root.index] : self.weight_map[self.root.index + 1]]
@@ -134,20 +137,19 @@ class TreeModel:
 
             # Building a mapping from subtree to instances
             subtree_to_instances = {
-                subtree_idx: np.where(top_k_indices == subtree_idx)[0]
-                for subtree_idx in np.unique(top_k_indices)
+                subtree_idx: np.where(top_k_indices == subtree_idx)[0] for subtree_idx in np.unique(top_k_indices)
             }
 
             # Calculate predictions for each subtree with its corresponding instances
             for subtree_idx, instances in subtree_to_instances.items():
-                subtree = self.subtrees[subtree_idx]
+                subtree_model = self.subtree_models[subtree_idx]
                 reduced_instances = x[np.s_[instances], :]
                 # Locate the position of the subtree root in the weight mapping of all nodes.
                 subtree_weights_start = self.weight_map[self.root.children[subtree_idx].index]
-                subtree_weights_end = subtree_weights_start + subtree.weights.shape[1]
+                subtree_weights_end = subtree_weights_start + subtree_model.weights.shape[1]
 
                 slice = np.s_[instances, subtree_weights_start:subtree_weights_end]
-                all_preds[slice] = linear.predict_values(subtree, reduced_instances)
+                all_preds[slice] = linear.predict_values(subtree_model, reduced_instances)
 
         return all_preds
 
@@ -251,7 +253,7 @@ def train_tree(
 
     root.dfs(visit)
     pbar.close()
-    
+
     flat_model, weight_map = _flatten_model(root)
     return TreeModel(root, flat_model, weight_map)
 
