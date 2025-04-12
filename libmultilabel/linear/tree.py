@@ -8,7 +8,6 @@ import sklearn.cluster
 import sklearn.preprocessing
 from tqdm import tqdm
 import psutil
-from ..common_utils import pairwise
 from . import linear
 
 __all__ = ["train_tree", "TreeModel"]
@@ -53,6 +52,7 @@ class TreeModel:
         self.flat_model = flat_model
         self.node_ptr = node_ptr
         self.multiclass = False
+        self.weigths_separated = False # Used for faster prediction
 
     def predict_values(
         self,
@@ -68,45 +68,45 @@ class TreeModel:
         Returns:
             np.ndarray: A matrix with dimension number of instances * number of classes.
         """
-        # number of instances * number of labels + total number of metalabels
         if beam_width >= len(self.root.children):
-            all_preds = linear.predict_values(self.flat_model, x)
+            all_preds = linear.predict_values(self.flat_model, x) # number of instances * (number of labels + total number of metalabels)
         else:
-            self._seperate_model_for_partial_predictions()
-            all_preds = self._prune_tree_predictions(x, beam_width)
+            if not self.weigths_separated:
+                self._separate_model_for_partial_predictions()
+                self.weigths_separated = True
+            all_preds = self._prune_tree_and_predict_values(x, beam_width) # number of instances * (number of labels + total number of metalabels)
         return np.vstack([self._beam_search(all_preds[i], beam_width) for i in range(all_preds.shape[0])])
 
-    def _seperate_model_for_partial_predictions(self):
+    def _separate_model_for_partial_predictions(self):
         """
         This function seperates the weights for the root node and its children into (K+1) FlatModel 
         for efficient beam search traversal in Python.
         """
-        if not hasattr(self, "root_model"):
-            tree_flat_model_params = {
-                'bias': self.root.model.bias,
-                'thresholds': 0,
-                'multiclass': False
-            } 
-            slice = np.s_[:, self.node_ptr[self.root.index] : self.node_ptr[self.root.index + 1]]
-            self.root_model = linear.FlatModel(
-                name="root-flattened-tree",
+        tree_flat_model_params = {
+            'bias': self.root.model.bias,
+            'thresholds': 0,
+            'multiclass': False
+        } 
+        slice = np.s_[:, self.node_ptr[self.root.index] : self.node_ptr[self.root.index + 1]]
+        self.root_model = linear.FlatModel(
+            name="root-flattened-tree",
+            weights=self.flat_model.weights[slice].tocsr(),
+            **tree_flat_model_params
+        )
+
+        self.subtree_models = []
+        for i in range(len(self.root.children)):
+            subtree_weights_start = self.node_ptr[self.root.children[i].index] 
+            subtree_weights_end = self.node_ptr[self.root.children[i+1].index] if i+1 < len(self.root.children) else -1
+            slice = np.s_[:, subtree_weights_start:subtree_weights_end]
+            subtree_flatmodel = linear.FlatModel(
+                name="subtree-flattened-tree",
                 weights=self.flat_model.weights[slice].tocsr(),
                 **tree_flat_model_params
             )
-
-            self.subtree_models = []
-            children_indices = [child.index for child in self.root.children] + [-1]
-
-            for cur_child_idx, next_child_idx in pairwise(children_indices):
-                slice = np.s_[:, self.node_ptr[cur_child_idx]:self.node_ptr[next_child_idx]]
-                subtree_flatmodel = linear.FlatModel(
-                    name="subtree-flattened-tree",
-                    weights=self.flat_model.weights[slice].tocsr(),
-                    **tree_flat_model_params
-                )
-                self.subtree_models.append(subtree_flatmodel)
-
-    def _prune_tree_predictions(self, x: sparse.csr_matrix, beam_width: int) -> np.ndarray:
+            self.subtree_models.append(subtree_flatmodel)
+        
+    def _prune_tree_and_predict_values(self, x: sparse.csr_matrix, beam_width: int) -> np.ndarray:
         """Calculates the paritial decision values associated with x.
 
         Only subtrees corresponding to the top beam_width candidates from the root are evaluated, 
@@ -123,7 +123,7 @@ class TreeModel:
         num_instances, num_labels = x.shape[0], self.node_ptr[-1]
         all_preds = np.full((num_instances, num_labels), np.NINF)
 
-        # Calculate root decision value and scores
+        # Calculate root decision values and scores
         root_preds = linear.predict_values(self.root_model, x)
         children_scores = 0.0 - np.square(np.maximum(0, 1 - root_preds))
 
@@ -135,8 +135,7 @@ class TreeModel:
 
         # Build a mask indicating whether i-th instance * j-th subtree
         mask = np.zeros_like(children_scores, dtype=np.bool_)
-        row_indices = np.arange(num_instances)[:, np.newaxis] 
-        mask[row_indices, top_beam_width_indices] = True
+        np.put_along_axis(mask, top_beam_width_indices, True, axis=1)
         
         # Calculate predictions for each subtree with its corresponding instances
         for subtree_idx in range(len(self.root.children)):
