@@ -8,6 +8,7 @@ import sklearn.cluster
 import sklearn.preprocessing
 from tqdm import tqdm
 import psutil
+
 from . import linear
 
 __all__ = ["train_tree", "TreeModel"]
@@ -69,17 +70,18 @@ class TreeModel:
             np.ndarray: A matrix with dimension number of instances * number of classes.
         """
         if beam_width >= len(self.root.children):
-            # Beam width sufficiently large; pruning skipped, pruning not applied, computing decision values for all nodes.
+            # Beam width sufficiently large; pruning not applied.
+            # Calculates decision values for all nodes.
             all_preds = linear.predict_values(self.flat_model, x) # number of instances * (number of labels + total number of metalabels)
         else:
-            # Beam width is small; pruning applied, computing decision values selectively.
+            # Beam width is small; pruning applied to reduce computation.
             if not self.model_separated:
-                self._separate_model_for_partial_predictions()
+                self._separate_model_for_pruning_tree()
                 self.model_separated = True
             all_preds = self._prune_tree_and_predict_values(x, beam_width) # number of instances * (number of labels + total number of metalabels)
         return np.vstack([self._beam_search(all_preds[i], beam_width) for i in range(all_preds.shape[0])])
 
-    def _separate_model_for_partial_predictions(self):
+    def _separate_model_for_pruning_tree(self):
         """
         This function seperates the weights for the root node and its children into (K+1) FlatModel
         for efficient beam search traversal in Python.
@@ -109,7 +111,7 @@ class TreeModel:
             self.subtree_models.append(subtree_flatmodel)
         
     def _prune_tree_and_predict_values(self, x: sparse.csr_matrix, beam_width: int) -> np.ndarray:
-        """Calculates the selected decision values associated with instances x.
+        """Calculates the selective decision values associated with instances x by evaluating only the most relevant subtrees.
 
         Only subtrees corresponding to the top beam_width candidates from the root are evaluated,
         skipping the rest to avoid unnecessary computation.
