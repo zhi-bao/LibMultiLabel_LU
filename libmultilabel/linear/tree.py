@@ -53,7 +53,7 @@ class TreeModel:
         self.flat_model = flat_model
         self.node_ptr = node_ptr
         self.multiclass = False
-        self.model_separated = False # Used for faster prediction
+        self._model_separated = False # Indicates whether the model has been separated for pruning tree.
 
     def predict_values(
         self,
@@ -70,14 +70,14 @@ class TreeModel:
             np.ndarray: A matrix with dimension number of instances * number of classes.
         """
         if beam_width >= len(self.root.children):
-            # Beam width sufficiently large; pruning not applied.
+            # Beam_width is sufficiently large; pruning not applied.
             # Calculates decision values for all nodes.
             all_preds = linear.predict_values(self.flat_model, x) # number of instances * (number of labels + total number of metalabels)
         else:
-            # Beam width is small; pruning applied to reduce computation.
-            if not self.model_separated:
+            # Beam_width is small; pruning applied to reduce computation.
+            if not self._model_separated:
                 self._separate_model_for_pruning_tree()
-                self.model_separated = True
+                self._model_separated = True
             all_preds = self._prune_tree_and_predict_values(x, beam_width) # number of instances * (number of labels + total number of metalabels)
         return np.vstack([self._beam_search(all_preds[i], beam_width) for i in range(all_preds.shape[0])])
 
@@ -137,7 +137,7 @@ class TreeModel:
         # Select indices of the top beam_width subtrees for each instance
         top_beam_width_indices = np.argsort(-children_scores, axis=1, kind="stable")[:, :beam_width]
 
-        # Build a mask where mask[i, j] is True if the j-th subtree is among the top beam width subtrees for the i-th instance
+        # Build a mask where mask[i, j] is True if the j-th subtree is among the top beam_width subtrees for the i-th instance
         mask = np.zeros_like(children_scores, dtype=np.bool_)
         np.put_along_axis(mask, top_beam_width_indices, True, axis=1)
         
@@ -345,7 +345,8 @@ def _flatten_model(root: Node) -> tuple[linear.FlatModel, np.ndarray]:
     """Flattens tree weight matrices into a single weight matrix. The flattened weight
     matrix is used to predict all possible values, which is cached for beam search.
     This pessimizes complexity but is faster in practice.
-    Consecutive values of the returned array where the classifiers for a node are stored in:
+    Consecutive values of the returned array denotes the start and end indices of each node in the weight matrix.
+    To extract a node's classifiers:
         slice = np.s_[node_ptr[node.index]:
                       node_ptr[node.index+1]]
         node.model.weights == flat_model.weights[:, slice]
