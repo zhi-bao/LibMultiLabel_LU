@@ -125,7 +125,7 @@ class TreeModel:
         """
         # Initialize space for all predictions with negative infinity
         num_instances, num_labels = x.shape[0], self.node_ptr[-1]
-        all_preds = np.full((num_instances, num_labels), np.NINF)
+        all_preds = np.full((num_instances, num_labels), -np.inf)
 
         # Calculate root decision values and scores
         root_preds = linear.predict_values(self.root_model, x)
