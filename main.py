@@ -217,7 +217,11 @@ def add_all_arguments(parser):
         action="store_true",
         help="Save all the predictions with decision value larger then 0. If used, the save_k_predictions must be set to 0",
     )
-
+    parser.add_argument(
+        "--pruning_ratio",
+        type=float,
+        help="The ratio of weights to prune for reducing the model size."
+    )
     # tree options
     parser.add_argument("--tree_degree", type=int, default=100, help="Degree of the tree (default: %(default)s)")
     parser.add_argument(
