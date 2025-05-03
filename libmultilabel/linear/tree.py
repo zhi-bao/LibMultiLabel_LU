@@ -201,6 +201,7 @@ def train_tree(
     K=100,
     dmax=10,
     verbose: bool = True,
+    pruning_alpha: float=1,
 ) -> TreeModel:
     """Trains a linear model for multi-label data using a divide-and-conquer strategy.
     The algorithm used is based on https://github.com/xmc-aalto/bonsai.
@@ -231,6 +232,7 @@ def train_tree(
         nonlocal num_nodes
         num_nodes += 1
         node.num_features_used = np.count_nonzero(features_used_perlabel[:, node.label_map].sum(axis=1))
+        node.pruning_alpha = pruning_alpha
 
     root.dfs(count)
 
@@ -329,14 +331,14 @@ def _train_node(y: sparse.csr_matrix, x: sparse.csr_matrix, options: str, node: 
         node (Node): Node to be trained.
     """
     if node.isLeaf():
-        node.model = linear.train_1vsrest(y[:, node.label_map], x, False, options, False)
+        node.model = linear.train_1vsrest(y[:, node.label_map], x, False, options, False, node.pruning_alpha)
     else:
         # meta_y[i, j] is 1 if the ith instance is relevant to the jth child.
         # getnnz returns an ndarray of shape number of instances.
         # This must be reshaped into number of instances * 1 to be interpreted as a column.
         meta_y = [y[:, child.label_map].getnnz(axis=1)[:, np.newaxis] > 0 for child in node.children]
         meta_y = sparse.csr_matrix(np.hstack(meta_y))
-        node.model = linear.train_1vsrest(meta_y, x, False, options, False)
+        node.model = linear.train_1vsrest(meta_y, x, False, options, False, node.pruning_alpha)
 
     node.model.weights = sparse.csc_matrix(node.model.weights)
 

@@ -218,9 +218,10 @@ def add_all_arguments(parser):
         help="Save all the predictions with decision value larger then 0. If used, the save_k_predictions must be set to 0",
     )
     parser.add_argument(
-        "--pruning_ratio",
+        "--pruning_alpha",
         type=float,
-        help="The ratio of weights to prune for reducing the model size."
+        default=1,
+        help="Fraction of weights to keep after pruning (1.0 means no pruning)."
     )
     # tree options
     parser.add_argument("--tree_degree", type=int, default=100, help="Degree of the tree (default: %(default)s)")
@@ -271,10 +272,10 @@ def get_config():
         args.scheduler_config = None
     config = AttributeDict(vars(args))
 
-    config.run_name = "{}_{}_{}".format(
+    config.run_name = "{}_{}".format(
         config.data_name,
         Path(config.config).stem if config.config else config.model_name,
-        datetime.now().strftime("%Y%m%d%H%M%S"),
+        # datetime.now().strftime("%Y%m%d%H%M%S"),
     )
     config.checkpoint_dir = os.path.join(config.result_dir, config.run_name)
     config.log_path = os.path.join(config.checkpoint_dir, "logs.json")

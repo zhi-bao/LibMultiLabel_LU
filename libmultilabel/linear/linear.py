@@ -71,13 +71,41 @@ class FlatModel:
 
         return (x * self.weights).A + self.thresholds
 
+def _pruning_weights(weights: np.ndarray, pruning_alpha: float) -> np.ndarray:
+    '''
+    Time complexity is O(n). If you can find that some technique to speed up the algorithm. 
+    Again, let me know.:)
+    
+    '''
+    # I perform in-plcae the filter. I know that maybe some concerns.
+    # If you find that issue about this one, please let me know. :)
+    # Filter the 1-pruning_alpha most close to zeros weights
+    pruning_ratio = 1-pruning_alpha
+    if 0 >= pruning_ratio:
+        return weights
+    elif pruning_ratio >= 1:
+        return np.zeros_like(weights)
+    else:
+        # Perform pruning algorithm
+        # Reduce column-wise the num_nonzeros_features per columns * pruning_ratio nonzero components
+        nonzero_indices = np.flatnonzero(weights)
+        num_nonzeros = nonzero_indices.size
+        # Threshold
+        k= np.clip(int(pruning_ratio * num_nonzeros), 0, num_nonzeros)
+        k_nonzero_indices = np.argpartition(np.abs(weights[nonzero_indices]), kth=k)[:k]
 
+        pruned_indices = nonzero_indices[k_nonzero_indices]
+        
+        weights[pruned_indices] = 0
+        return weights
+    
 def train_1vsrest(
     y: sparse.csr_matrix,
     x: sparse.csr_matrix,
     multiclass: bool = False,
     options: str = "",
     verbose: bool = True,
+    pruning_alpha: float=1,
 ) -> FlatModel:
     """Trains a linear model for multi-label data using a one-vs-rest strategy.
 
@@ -103,7 +131,7 @@ def train_1vsrest(
         logging.info(f"Training one-vs-rest model on {num_class} labels")
     for i in tqdm(range(num_class), disable=not verbose):
         yi = y[:, i].toarray().reshape(-1)
-        weights[:, i] = _do_train(2 * yi - 1, x, options).ravel()
+        weights[:, i] = _pruning_weights(np.asarray(_do_train(2 * yi - 1, x, options)).ravel(), pruning_alpha)
 
     return FlatModel(
         name="1vsrest",
