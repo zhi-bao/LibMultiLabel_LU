@@ -149,7 +149,7 @@ class CNNEncoder(nn.Module):
 
 
 class LabelwiseAttention(nn.Module):
-    """Applies attention technique to summarize the sequence for each label
+    """Apply attention technique to summarize the sequence for each label.
     See `Explainable Prediction of Medical Codes from Clinical Text <https://aclanthology.org/N18-1100.pdf>`_
 
     Args:

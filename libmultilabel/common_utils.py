@@ -34,7 +34,7 @@ class AttributeDict(dict):
         self._used.discard(key)
 
     def used_items(self) -> dict:
-        """Returns the items that have been used at least once after being set.
+        """Return the items that have been used at least once after being set.
 
         Returns:
             dict: the used items.
