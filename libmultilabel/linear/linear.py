@@ -39,7 +39,7 @@ class FlatModel:
         self.multiclass = multiclass
 
     def predict_values(self, x: sparse.csr_matrix) -> np.ndarray:
-        """Calculates the decision values associated with x.
+        """Calculate the decision values associated with x.
 
         Args:
             x (sparse.csr_matrix): A matrix with dimension number of instances * number of features.
@@ -79,7 +79,7 @@ def train_1vsrest(
     options: str = "",
     verbose: bool = True,
 ) -> FlatModel:
-    """Trains a linear model for multi-label data using a one-vs-rest strategy.
+    """Train a linear model for multi-label data using a one-vs-rest strategy.
 
     Args:
         y (sparse.csr_matrix): A 0/1 matrix with dimensions number of instances * number of classes.
@@ -169,9 +169,9 @@ def train_thresholding(
     options: str = "",
     verbose: bool = True,
 ) -> FlatModel:
-    """Trains a linear model for multi-label data using a one-vs-rest strategy
+    """Train a linear model for multi-label data using a one-vs-rest strategy
     and cross-validation to pick decision thresholds optimizing the sum of Macro-F1 and Micro-F1.
-    Outperforms train_1vsrest in most aspects at the cost of higher time complexity
+    Outperform train_1vsrest in most aspects at the cost of higher time complexity
     due to an internal cross-validation.
 
     This method is the micromacro-freq approach from this CIKM 2023 paper:
@@ -235,7 +235,7 @@ def _micromacro_one_label(
             negatives, and the number of labels processed.
 
     Returns:
-        tuple[np.ndarray, float, dict]: the weights, threshold, and the updated stats for calculating
+        tuple[np.ndarray, float, dict]: The weights, threshold, and the updated stats for calculating
         Micro-F1.
     """
 
@@ -319,7 +319,7 @@ def _micromacro_one_label(
 
 
 def _do_train(y: np.ndarray, x: sparse.csr_matrix, options: str) -> np.matrix:
-    """Wrapper around liblinear.liblinearutil.train.
+    """Wrap around liblinear.liblinearutil.train.
     Forcibly suppresses all IO regardless of options.
 
     Args:
@@ -328,7 +328,7 @@ def _do_train(y: np.ndarray, x: sparse.csr_matrix, options: str) -> np.matrix:
         options (str): The option string passed to liblinear.
 
     Returns:
-        np.matrix: the weights.
+        np.matrix: The weights.
     """
     if y.shape[0] == 0:
         return np.matrix(np.zeros((x.shape[1], 1)))
@@ -376,11 +376,11 @@ def _fmeasure(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     """Calculate F1 score.
 
     Args:
-        y_true (np.ndarray): array of +1/-1.
-        y_pred (np.ndarray): array of +1/-1.
+        y_true (np.ndarray): Array of +1/-1.
+        y_pred (np.ndarray): Array of +1/-1.
 
     Returns:
-        float: the F1 score.
+        float: The F1 score.
     """
     tp = np.sum(np.logical_and(y_true == 1, y_pred == 1))
     fn = np.sum(np.logical_and(y_true == 1, y_pred == -1))
@@ -399,10 +399,10 @@ def train_cost_sensitive(
     options: str = "",
     verbose: bool = True,
 ) -> FlatModel:
-    """Trains a linear model for multi-label data using a one-vs-rest strategy
+    """Train a linear model for multi-label data using a one-vs-rest strategy
     and cross-validation to pick an optimal asymmetric misclassification cost
     for Macro-F1.
-    Outperforms train_1vsrest in most aspects at the cost of higher
+    Outperform train_1vsrest in most aspects at the cost of higher
     time complexity.
     See user guide for more details.
 
@@ -416,7 +416,7 @@ def train_cost_sensitive(
     Returns:
         A model which can be used in predict_values.
     """
-    # Follows the MATLAB implementation at https://www.csie.ntu.edu.tw/~cjlin/libsvmtools/multilabel/
+    # Follow the MATLAB implementation at https://www.csie.ntu.edu.tw/~cjlin/libsvmtools/multilabel/
     x, options, bias = _prepare_options(x, options)
 
     y = y.tocsc()
@@ -449,7 +449,7 @@ def _cost_sensitive_one_label(y: np.ndarray, x: sparse.csr_matrix, options: str)
         options (str): The option string passed to liblinear.
 
     Returns:
-        np.ndarray: the weights.
+        np.ndarray: The weights.
     """
 
     l = y.shape[0]
@@ -503,10 +503,10 @@ def train_cost_sensitive_micro(
     options: str = "",
     verbose: bool = True,
 ) -> FlatModel:
-    """Trains a linear model for multi-label data using a one-vs-rest strategy
+    """Train a linear model for multi-label data using a one-vs-rest strategy
     and cross-validation to pick an optimal asymmetric misclassification cost
     for Micro-F1.
-    Outperforms train_1vsrest in most aspects at the cost of higher
+    Outperform train_1vsrest in most aspects at the cost of higher
     time complexity.
     See user guide for more details.
 
@@ -574,7 +574,7 @@ def train_binary_and_multiclass(
     options: str = "",
     verbose: bool = True,
 ) -> FlatModel:
-    """Trains a linear model for binary and multi-class data.
+    """Train a linear model for binary and multi-class data.
 
     Args:
         y (sparse.csr_matrix): A 0/1 matrix with dimensions number of instances * number of classes.
@@ -628,7 +628,7 @@ def train_binary_and_multiclass(
 
 
 def predict_values(model, x: sparse.csr_matrix) -> np.ndarray:
-    """Calculates the decision values associated with x, equivalent to model.predict_values(x).
+    """Calculate the decision values associated with x, equivalent to model.predict_values(x).
 
     Args:
         model: A model returned from a training function.
