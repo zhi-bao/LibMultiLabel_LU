@@ -336,7 +336,7 @@ def _do_train(y: np.ndarray, x: sparse.csr_matrix, options: str) -> np.matrix:
     prob = problem(y, x)
     param = parameter(options)
     if param.solver_type in [solver_names.L2R_L1LOSS_SVC_DUAL, solver_names.L2R_L2LOSS_SVC_DUAL]:
-        param.w_recalc = True   # only works for solving L1/L2-SVM dual
+        param.w_recalc = True  # only works for solving L1/L2-SVM dual
     with silent_stderr():
         model = train(prob, param)
 
