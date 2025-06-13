@@ -83,7 +83,7 @@ class TreeModel:
 
     def _separate_model_for_pruning_tree(self):
         """
-        This function seperates the weights for the root node and its children into (K+1) FlatModel
+        This function separates the weights for the root node and its children into (K+1) FlatModel
         for efficient beam search traversal in Python.
         """
         tree_flat_model_params = {
@@ -214,7 +214,7 @@ def train_tree(
         verbose (bool, optional): Output extra progress information. Defaults to True.
 
     Returns:
-        A model which can be used in predict_values.
+        TreeModel: A model which can be used in predict_values.
     """
     label_representation = (y.T * x).tocsr()
     label_representation = sklearn.preprocessing.normalize(label_representation, norm="l2", axis=1)
@@ -272,7 +272,7 @@ def _build_tree(label_representation: sparse.csr_matrix, label_map: np.ndarray, 
         dmax (int): Maximum depth of the tree.
 
     Returns:
-        Node: root of the (sub)tree built from label_representation.
+        Node: Root of the (sub)tree built from label_representation.
     """
     if d >= dmax or label_representation.shape[0] <= K:
         return Node(label_map=label_map, children=[])
@@ -345,7 +345,7 @@ def _flatten_model(root: Node) -> tuple[linear.FlatModel, np.ndarray]:
     """Flattens tree weight matrices into a single weight matrix. The flattened weight
     matrix is used to predict all possible values, which is cached for beam search.
     This pessimizes complexity but is faster in practice.
-    Consecutive values of the returned array denotes the start and end indices of each node in the weight matrix.
+    Consecutive values of the returned array denote the start and end indices of each node in the tree.
     To extract a node's classifiers:
         slice = np.s_[node_ptr[node.index]:
                       node_ptr[node.index+1]]
