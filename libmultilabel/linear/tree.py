@@ -4,7 +4,7 @@ from typing import Callable
 
 import numpy as np
 import scipy.sparse as sparse
-import sklearn.cluster
+from sparsekmeans import LloydKmeans, ElkanKmeans
 import sklearn.preprocessing
 from tqdm import tqdm
 import psutil
@@ -277,24 +277,37 @@ def _build_tree(label_representation: sparse.csr_matrix, label_map: np.ndarray, 
     if d >= dmax or label_representation.shape[0] <= K:
         return Node(label_map=label_map, children=[])
 
-    metalabels = (
-        sklearn.cluster.KMeans(
-            K,
-            random_state=np.random.randint(2**31 - 1),
-            n_init=1,
-            max_iter=300,
-            tol=0.0001,
-            algorithm="elkan",
-        )
-        .fit(label_representation)
-        .labels_
-    )
+    if label_representation.shape[0] > 10000:
+        kmeans = ElkanKmeans(
+                n_clusters=K,
+                max_iter=300,
+                tol=0.0001,
+                random_state=np.random.randint(2**31 - 1),
+                verbose=True
+            )
+    else:
+        kmeans = LloydKmeans(
+                n_clusters=K,
+                max_iter=300,
+                tol=0.0001,
+                random_state=np.random.randint(2**31 - 1),
+                verbose=True
+                )
+    
+    metalabels = kmeans.fit(label_representation)
+
+    unique_labels = np.unique(metalabels)
 
     children = []
     for i in range(K):
         child_representation = label_representation[metalabels == i]
         child_map = label_map[metalabels == i]
-        child = _build_tree(child_representation, child_map, d + 1, K, dmax)
+        
+        if len(unique_labels) == K:
+            child = _build_tree(child_representation, child_map, d + 1, K, dmax)
+        else:
+            child = Node(label_map=child_map, children=[])
+        
         children.append(child)
 
     return Node(label_map=label_map, children=children)

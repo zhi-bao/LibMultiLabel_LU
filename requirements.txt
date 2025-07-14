@@ -6,3 +6,4 @@ scikit-learn
 scipy<1.14.0
 tqdm
 psutil
+sparsekmeans
