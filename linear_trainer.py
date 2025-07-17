@@ -7,7 +7,9 @@ from tqdm import tqdm
 import libmultilabel.linear as linear
 from libmultilabel.common_utils import dump_log, is_multiclass_dataset
 from libmultilabel.linear.utils import LINEAR_TECHNIQUES
-
+import graphblas as gb
+import scipy.sparse as sp
+import pickle
 
 def linear_test(config, model, datasets, label_mapping):
     metrics = linear.get_metrics(config.monitor_metrics, datasets["test"]["y"].shape[1], multiclass=model.multiclass)
@@ -71,8 +73,12 @@ def linear_run(config):
 
     if config.eval:
         preprocessor, model = linear.load_pipeline(config.checkpoint_path)
-        datasets = linear.load_dataset(config.data_format, config.training_file, config.test_file)
-        datasets = preprocessor.transform(datasets)
+        if config.test_file.endswith(".pkl"):
+            with open(config.test_file, "rb") as f:
+                datasets = pickle.load(f)
+        else:
+            datasets = linear.load_dataset(config.data_format, config.training_file, config.test_file)
+            datasets = preprocessor.transform(datasets)
     else:
         preprocessor = linear.Preprocessor(config.include_test_labels, config.remove_no_label_data)
         datasets = linear.load_dataset(
@@ -82,8 +88,11 @@ def linear_run(config):
             config.label_file,
         )
         datasets = preprocessor.fit_transform(datasets)
+        if config.use_graphblas:
+            logging.info("Didn't use graphblas for training")
         model = linear_train(datasets, config)
         linear.save_pipeline(config.checkpoint_dir, preprocessor, model)
+    
 
     if config.test_file is not None:
         assert not (
@@ -91,6 +100,17 @@ def linear_run(config):
         ), """
             If save_k_predictions is larger than 0, only top k labels are saved.
             Save all labels with decision value larger than 0 by using save_positive_predictions and save_k_predictions=0."""
+        if config.use_graphblas:
+            logging.info("Using graphblas for testing")
+            if isinstance(model.flat_model.weights, sp.csr_matrix):
+                logging.info("If it needed, convert the weights to csc format. (Because our weights are in csc format)")
+                model.flat_model.weights = model.flat_model.weights.tocsc()
+            before_type = type(model.flat_model.weights)
+            model.flat_model.weights = gb.io.from_scipy_sparse(model.flat_model.weights)
+            logging.info(f"FlatModel type: {before_type} -> {model.flat_model.weights.ss.format}")
+        else:
+            logging.info("Please make sure the weights are in csr format for faster prediction.")
+            logging.info("However, if you use prune tree prediction, you need to use csc format for faster prediction.")
         metric_dict, labels, scores = linear_test(config, model, datasets, preprocessor.label_mapping)
         dump_log(config=config, metrics=metric_dict, split="test", log_path=config.log_path)
         print(linear.tabulate_metrics(metric_dict, "test"))

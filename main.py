@@ -243,7 +243,7 @@ def add_all_arguments(parser):
         help="If you are trying to specify network config such as dropout or activation or config of the learning rate scheduler, use a yaml file instead. "
         "See example configs in example_config",
     )
-
+    parser.add_argument("--use_graphblas", action="store_true", help="Use graphblas for training (default: %(default)s)")
 
 def get_config():
     parser = argparse.ArgumentParser(add_help=False, description="multi-label and multi-class classification")
@@ -267,11 +267,15 @@ def get_config():
         args.scheduler_config = None
     config = AttributeDict(vars(args))
 
-    config.run_name = "{}_{}_{}".format(
+    config.run_name = "{}_{}".format(
         config.data_name,
         Path(config.config).stem if config.config else config.model_name,
-        datetime.now().strftime("%Y%m%d%H%M%S"),
+        # datetime.now().strftime("%Y%m%d%H%M%S"),
     )
+    if config.use_graphblas:
+        config.run_name = config.run_name + "_graphblas"
+        import graphblas as gb
+        gb.init("suitesparse", blocking=False)
     config.checkpoint_dir = os.path.join(config.result_dir, config.run_name)
     config.log_path = os.path.join(config.checkpoint_dir, "logs.json")
     config.predict_out_path = config.predict_out_path or os.path.join(config.checkpoint_dir, "predictions.txt")

@@ -8,7 +8,9 @@ import sklearn.cluster
 import sklearn.preprocessing
 from tqdm import tqdm
 import psutil
-
+import graphblas as gb
+import logging
+import sys
 from . import linear
 
 __all__ = ["train_tree", "TreeModel"]
@@ -69,9 +71,10 @@ class TreeModel:
             np.ndarray: A matrix with dimension number of instances * number of classes.
         """
         # number of instances * number of labels + total number of metalabels
+        # logging.info(f"[Before]gb.Matrix refcount:{sys.getrefcount(gb.Matrix)}")
         all_preds = linear.predict_values(self.flat_model, x)
+        # logging.info(f"[After]gb.Matrix refcount:{sys.getrefcount(gb.Matrix)}")
         return np.vstack([self._beam_search(all_preds[i], beam_width) for i in range(all_preds.shape[0])])
-
     def _beam_search(self, instance_preds: np.ndarray, beam_width: int) -> np.ndarray:
         """Predict with beam search using cached probability estimates for a single instance.
 

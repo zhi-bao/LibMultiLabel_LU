@@ -7,6 +7,8 @@ import numpy as np
 import scipy.sparse as sparse
 from liblinear.liblinearutil import train, problem, parameter
 from tqdm import tqdm
+import graphblas as gb
+from libmultilabel.common_utils import timer
 
 __all__ = [
     "train_1vsrest",
@@ -19,7 +21,9 @@ __all__ = [
     "get_positive_labels",
     "FlatModel",
 ]
-
+            
+            
+n_threads = os.cpu_count()//2
 
 class FlatModel:
     """A model returned from a training function."""
@@ -37,7 +41,7 @@ class FlatModel:
         self.bias = bias
         self.thresholds = thresholds
         self.multiclass = multiclass
-
+    @timer
     def predict_values(self, x: sparse.csr_matrix) -> np.ndarray:
         """Calculates the decision values associated with x.
 
@@ -68,8 +72,16 @@ class FlatModel:
                 ],
                 "csr",
             )
-
-        return (x * self.weights).A + self.thresholds
+        if isinstance(self.weights, gb.Matrix):
+            instances = gb.io.from_scipy_sparse(x)
+            C = gb.Matrix(gb.dtypes.FP64, instances.shape[0], self.weights.shape[1])
+            C(nthreads=n_threads) << instances.mxm(self.weights)
+            answer = C.to_dense(fill_value=0) + (self.thresholds)
+            C.ss = None
+            x.ss = None
+            return answer
+        else:
+            return (x * self.weights).A + self.thresholds
 
 
 def train_1vsrest(
