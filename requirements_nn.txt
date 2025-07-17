@@ -4,4 +4,5 @@ lightning
 torch<=2.3
 torchmetrics==0.10.3
 torchtext
-transformers
+# https://github.com/huggingface/transformers/issues/38464
+transformers<=4.51.3
