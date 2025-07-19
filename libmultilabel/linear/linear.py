@@ -27,7 +27,7 @@ class FlatModel:
     def __init__(
         self,
         name: str,
-        weights: np.matrix,
+        weights: np.matrix | sparse.csr_matrix,
         bias: float,
         thresholds: float | np.ndarray,
         multiclass: bool,
@@ -69,7 +69,21 @@ class FlatModel:
                 "csr",
             )
 
-        return (x * self.weights).A + self.thresholds
+        return self._to_dense_array(x * self.weights) + self.thresholds
+
+    def _to_dense_array(self, matrix: np.matrix | sparse.csr_matrix) -> np.ndarray:
+        """Convert a numpy or scipy matrix to a dense ndarray.
+
+        Args:
+            matrix (np.matrix | sparse.csr_matrix): A numpy or scipy sparse matrix.
+
+        Returns:
+            np.ndarray: A dense ndarray of `matrix`.
+        """
+        if sparse.issparse(matrix):
+            return matrix.toarray()
+        elif isinstance(matrix, np.matrix):
+            return matrix.A
 
 
 def train_1vsrest(
