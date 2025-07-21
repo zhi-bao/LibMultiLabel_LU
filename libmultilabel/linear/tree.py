@@ -274,41 +274,29 @@ def _build_tree(label_representation: sparse.csr_matrix, label_map: np.ndarray, 
     Returns:
         Node: Root of the (sub)tree built from label_representation.
     """
-    if d >= dmax or label_representation.shape[0] <= K:
-        return Node(label_map=label_map, children=[])
-
-    if label_representation.shape[0] > 10000:
-        kmeans = ElkanKmeans(
-                n_clusters=K,
-                max_iter=300,
-                tol=0.0001,
-                random_state=np.random.randint(2**31 - 1),
-                verbose=True
-            )
-    else:
-        kmeans = LloydKmeans(
-                n_clusters=K,
-                max_iter=300,
-                tol=0.0001,
-                random_state=np.random.randint(2**31 - 1),
-                verbose=True
-                )
-    
-    metalabels = kmeans.fit(label_representation)
-
-    unique_labels = np.unique(metalabels)
-
     children = []
-    for i in range(K):
-        child_representation = label_representation[metalabels == i]
-        child_map = label_map[metalabels == i]
-        
-        if len(unique_labels) == K:
-            child = _build_tree(child_representation, child_map, d + 1, K, dmax)
+    if d < dmax and label_representation.shape[0] > K:
+        if label_representation.shape[0] > 10000:
+            kmeans_algo = ElkanKmeans
         else:
-            child = Node(label_map=child_map, children=[])
-        
-        children.append(child)
+            kmeans_algo = LloydKmeans
+
+        kmeans = kmeans_algo(
+            n_clusters=K, max_iter=300, tol=0.0001, random_state=np.random.randint(2**31 - 1), verbose=True
+        )
+        metalabels = kmeans.fit(label_representation)
+
+        unique_labels = np.unique(metalabels)
+        if len(unique_labels) == K:
+            create_child_node = lambda i: _build_tree(
+                label_representation[metalabels == i], label_map[metalabels == i], d + 1, K, dmax
+            )
+        else:
+            create_child_node = lambda i: Node(label_map=label_map[metalabels == i], children=[])
+
+        for i in range(K):
+            child = create_child_node(i)
+            children.append(child)
 
     return Node(label_map=label_map, children=children)
 
