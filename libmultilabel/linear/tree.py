@@ -101,7 +101,7 @@ class TreeModel:
         self.subtree_models = []
         for i in range(len(self.root.children)):
             subtree_weights_start = self.node_ptr[self.root.children[i].index]
-            subtree_weights_end = self.node_ptr[self.root.children[i+1].index] if i+1 < len(self.root.children) else -1
+            subtree_weights_end = self.node_ptr[self.root.children[i+1].index] if i+1 < len(self.root.children) else self.node_ptr[-1]
             slice = np.s_[:, subtree_weights_start:subtree_weights_end]
             subtree_flatmodel = linear.FlatModel(
                 name="subtree-flattened-tree",
