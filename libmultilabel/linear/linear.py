@@ -83,7 +83,7 @@ class FlatModel:
         if sparse.issparse(matrix):
             return matrix.toarray()
         elif isinstance(matrix, np.matrix):
-            return matrix.A
+            return np.asarray(matrix)
 
 
 def train_1vsrest(
