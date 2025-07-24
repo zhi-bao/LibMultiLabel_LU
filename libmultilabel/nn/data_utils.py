@@ -430,7 +430,7 @@ def get_embedding_weights_from_file(word_dict, embed_file, silent=False, cache_d
     for word in word_dict.keys():
         if word in vector_dict:
             embedding_weights[word_dict[word]] = vector_dict[word]
-        vec_counts += 1
+            vec_counts += 1
 
     logging.info(f"loaded {vec_counts}/{len(word_dict)} word embeddings")
 
