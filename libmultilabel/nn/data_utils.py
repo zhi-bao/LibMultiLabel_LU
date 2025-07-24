@@ -275,8 +275,7 @@ def load_or_build_text_dict(
 ):
     """Build or load the vocabulary from the training dataset or the predefined `vocab_file`.
     The pretrained embedding can be either from a self-defined `embed_file` or from one of
-    the vectors defined in torchtext.vocab.pretrained_aliases
-    (https://github.com/pytorch/text/blob/main/torchtext/vocab/vectors.py).
+    the vectors: `glove.6B.50d`, `glove.6B.100d`, `glove.6B.200d`, `glove.6B.300d`, `glove.42B.300d`, `glove.840B.300d`.
 
     Args:
         dataset (list): List of training instances with index, label, and tokenized text.
@@ -286,7 +285,7 @@ def load_or_build_text_dict(
         embed_cache_dir (str, optional): Path to a directory for storing cached embeddings. Defaults to None.
         silent (bool, optional): Enable silent mode. Defaults to False.
         normalize_embed (bool, optional): Whether the embeddings of each word is normalized to a unit vector. Defaults to False.
-    
+
     Returns:
         tuple[dict, torch.Tensor]: A dictionary which maps tokens to indices and the pre-trained word vectors of shape (vocab_size, embed_dim).
     """
@@ -299,9 +298,9 @@ def load_or_build_text_dict(
         word_dict = _build_word_dict(vocab_list, min_vocab_freq=1, specials=[PAD, UNK])
     else:
         vocab_list = [set(data["text"]) for data in dataset]
-        word_dict = _build_word_dict(vocab_list, min_vocab_freq=min_vocab_freq, specials=[PAD, UNK]) # we don't need min_vocab_freq as we use set
+        word_dict = _build_word_dict(vocab_list, min_vocab_freq=min_vocab_freq, specials=[PAD, UNK])
 
-    logging.info(f"Read {len(word_dict)} vocabularies.") # TBD: check if pad unk is included
+    logging.info(f"Read {len(word_dict)} vocabularies.")
 
     embedding_weights = get_embedding_weights_from_file(word_dict, embed_file, silent, embed_cache_dir)
 
@@ -334,7 +333,7 @@ def _build_word_dict(vocab_list, min_vocab_freq=1, specials=None):
     counter = Counter()
     for tokens in vocab_list:
         counter.update(tokens)
-    
+
     # sort by descending frequency, then lexicographically
     sorted_by_freq_tuples = sorted(counter.items(), key=lambda x: (-x[1], x[0]))
     ordered_dict = OrderedDict(sorted_by_freq_tuples)
@@ -392,7 +391,7 @@ def get_embedding_weights_from_file(word_dict, embed_file, silent=False, cache_d
     Otherwise, assign a zero vector to that word.
 
     Args:
-        word_dict (dict): A vocab object which maps tokens to indices.
+        word_dict (dict): A dictionary for mapping tokens to indices.
         embed_file (str): Path to a file holding pre-trained embeddings.
         silent (bool, optional): Enable silent mode. Defaults to False.
         cache_dir (str, optional): Path to a directory for storing cached embeddings. Defaults to None.
@@ -405,15 +404,14 @@ def get_embedding_weights_from_file(word_dict, embed_file, silent=False, cache_d
         embed_file = _download_pretrained_embedding(embed_file, cache_dir=cache_dir)
     elif not os.path.isfile(embed_file):
         raise ValueError(
-            "Got embed_file {}, but allowed pretrained "
-            "embeddings are {}".format(embed_file, PRETRAINED_ALIASES)
+            "Got embed_file {}, but allowed pretrained " "embeddings are {}".format(embed_file, PRETRAINED_ALIASES)
         )
 
     logging.info(f"Load pretrained embedding from file: {embed_file}.")
     with open(embed_file) as f:
         word_vectors = f.readlines()
     embed_size = len(word_vectors[0].split()) - 1
-    
+
     vector_dict = {}
     for word_vector in tqdm(word_vectors, disable=silent):
         word, vector = word_vector.rstrip().split(" ", 1)
@@ -429,7 +427,6 @@ def get_embedding_weights_from_file(word_dict, embed_file, silent=False, cache_d
 
     # Store pretrained word embedding
     vec_counts = 0
-    # for word in word_dict.get_itos(): # list of words
     for word in word_dict.keys():
         if word in vector_dict:
             embedding_weights[word_dict[word]] = vector_dict[word]
@@ -448,9 +445,9 @@ def _download_pretrained_embedding(embed_file, cache_dir=None):
     """
     cached_embed_file = f"{cache_dir}/{embed_file}.txt"
     if os.path.isfile(cached_embed_file):
-            return cached_embed_file
+        return cached_embed_file
     os.makedirs(cache_dir, exist_ok=True)
-    
+
     remote_embed_file = re.sub(r"6B.*", "6B", embed_file) + ".zip"
     url = f"https://huggingface.co/stanfordnlp/glove/resolve/main/{remote_embed_file}"
     logging.info(f"Downloading pretrained embedding from {url}.")
