@@ -275,7 +275,7 @@ def load_or_build_text_dict(
 ):
     """Build or load the vocabulary from the training dataset or the predefined `vocab_file`.
     The pretrained embedding can be either from a self-defined `embed_file` or from one of
-    the vectors: `glove.6B.50d`, `glove.6B.100d`, `glove.6B.200d`, `glove.6B.300d`, `glove.42B.300d`, `glove.840B.300d`.
+    the vectors: `glove.6B.50d`, `glove.6B.100d`, `glove.6B.200d`, `glove.6B.300d`, `glove.42B.300d`, or `glove.840B.300d`.
 
     Args:
         dataset (list): List of training instances with index, label, and tokenized text.
@@ -319,7 +319,8 @@ def load_or_build_text_dict(
 
 
 def _build_word_dict(vocab_list, min_vocab_freq=1, specials=None):
-    r"""Build word dictionary, modified from torchtext.vocab.build-vocab-from-iterator (https://docs.pytorch.org/text/stable/vocab.html#build-vocab-from-iterator)
+    r"""Build word dictionary, modified from `torchtext.vocab.build-vocab-from-iterator` 
+    (https://docs.pytorch.org/text/stable/vocab.html#build-vocab-from-iterator)
 
     Args:
         vocab_list: List of words.
@@ -338,7 +339,7 @@ def _build_word_dict(vocab_list, min_vocab_freq=1, specials=None):
     sorted_by_freq_tuples = sorted(counter.items(), key=lambda x: (-x[1], x[0]))
     ordered_dict = OrderedDict(sorted_by_freq_tuples)
 
-    # add special tokens at the beginning
+    # add special tokens at the beginning 
     tokens = specials or []
     for token, freq in ordered_dict.items():
         if freq >= min_vocab_freq:
