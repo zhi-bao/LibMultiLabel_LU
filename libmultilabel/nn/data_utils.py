@@ -23,7 +23,7 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 
 UNK = "<unk>"
 PAD = "<pad>"
-PRETRAINED_ALIASES = {
+GLOVE_WORD_EMBEDDING = {
     "glove.42B.300d",
     "glove.840B.300d",
     "glove.6B.50d",
@@ -164,6 +164,7 @@ def _load_raw_data(data, is_test=False, tokenize_text=True, remove_no_label_data
     Args:
         data (Union[str, pandas,.Dataframe]): Training, test, or validation data in file or dataframe.
         is_test (bool, optional): Whether the data is for test or not. Defaults to False.
+        tokenize_text (bool, optional): Whether to tokenize text. Defaults to True.
         remove_no_label_data (bool, optional): Whether to remove training/validation instances that have no labels.
             This is effective only when is_test=False. Defaults to False.
 
@@ -281,7 +282,7 @@ def load_or_build_text_dict(
         dataset (list): List of training instances with index, label, and tokenized text.
         vocab_file (str, optional): Path to a file holding vocabuaries. Defaults to None.
         min_vocab_freq (int, optional): The minimum frequency needed to include a token in the vocabulary. Defaults to 1.
-        embed_file (str): Path to a file holding pre-trained embeddings.
+        embed_file (str): Path to a file holding pre-trained embeddings or the name of the pretrained GloVe embedding. Defaults to None.
         embed_cache_dir (str, optional): Path to a directory for storing cached embeddings. Defaults to None.
         silent (bool, optional): Enable silent mode. Defaults to False.
         normalize_embed (bool, optional): Whether the embeddings of each word is normalized to a unit vector. Defaults to False.
@@ -319,13 +320,13 @@ def load_or_build_text_dict(
 
 
 def _build_word_dict(vocab_list, min_vocab_freq=1, specials=None):
-    r"""Build word dictionary, modified from `torchtext.vocab.build-vocab-from-iterator` 
+    r"""Build word dictionary, modified from `torchtext.vocab.build-vocab-from-iterator`
     (https://docs.pytorch.org/text/stable/vocab.html#build-vocab-from-iterator)
 
     Args:
         vocab_list: List of words.
         min_vocab_freq (int, optional): The minimum frequency needed to include a token in the vocabulary. Defaults to 1.
-        specials: Special tokens (e.g., <unk>, <pad>) to add.
+        specials: Special tokens (e.g., <unk>, <pad>) to add. Defaults to None.
 
     Returns:
         dict: A dictionary which maps tokens to indices.
@@ -339,7 +340,7 @@ def _build_word_dict(vocab_list, min_vocab_freq=1, specials=None):
     sorted_by_freq_tuples = sorted(counter.items(), key=lambda x: (-x[1], x[0]))
     ordered_dict = OrderedDict(sorted_by_freq_tuples)
 
-    # add special tokens at the beginning 
+    # add special tokens at the beginning
     tokens = specials or []
     for token, freq in ordered_dict.items():
         if freq >= min_vocab_freq:
@@ -388,12 +389,14 @@ def load_or_build_label(datasets, label_file=None, include_test_labels=False):
 
 
 def get_embedding_weights_from_file(word_dict, embed_file, silent=False, cache_dir=None):
-    """If the word exists in the embedding file, load the pretrained word embedding.
-    Otherwise, assign a zero vector to that word.
+    """Obtain the word embeddings from file. If the word exists in the embedding file, 
+    load the pretrained word embedding. Otherwise, assign a zero vector to that word.
+    If the given `embed_file` is the name of a pretrained GloVe embedding, the function 
+    will first download the corresponding file.
 
     Args:
         word_dict (dict): A dictionary for mapping tokens to indices.
-        embed_file (str): Path to a file holding pre-trained embeddings.
+        embed_file (str): Path to a file holding pre-trained embeddings or the name of the pretrained GloVe embedding.
         silent (bool, optional): Enable silent mode. Defaults to False.
         cache_dir (str, optional): Path to a directory for storing cached embeddings. Defaults to None.
 
@@ -401,14 +404,14 @@ def get_embedding_weights_from_file(word_dict, embed_file, silent=False, cache_d
         torch.Tensor: Embedding weights (vocab_size, embed_size).
     """
 
-    if embed_file in PRETRAINED_ALIASES:
-        embed_file = _download_pretrained_embedding(embed_file, cache_dir=cache_dir)
+    if embed_file in GLOVE_WORD_EMBEDDING:
+        embed_file = _download_glove_embedding(embed_file, cache_dir=cache_dir)
     elif not os.path.isfile(embed_file):
         raise ValueError(
-            "Got embed_file {}, but allowed pretrained " "embeddings are {}".format(embed_file, PRETRAINED_ALIASES)
+            "Got embed_file {}, but allowed pretrained " "embeddings are {}".format(embed_file, GLOVE_WORD_EMBEDDING)
         )
 
-    logging.info(f"Load pretrained embedding from file: {embed_file}.")
+    logging.info(f"Load pretrained embedding from {embed_file}.")
     with open(embed_file) as f:
         word_vectors = f.readlines()
     embed_size = len(word_vectors[0].split()) - 1
@@ -433,25 +436,30 @@ def get_embedding_weights_from_file(word_dict, embed_file, silent=False, cache_d
             embedding_weights[word_dict[word]] = vector_dict[word]
             vec_counts += 1
 
-    logging.info(f"loaded {vec_counts}/{len(word_dict)} word embeddings")
+    logging.info(f"Loaded {vec_counts}/{len(word_dict)} word embeddings")
 
     return embedding_weights
 
 
-def _download_pretrained_embedding(embed_file, cache_dir=None):
+def _download_glove_embedding(embed_name, cache_dir=None):
     """Download pretrained glove embedding from https://huggingface.co/stanfordnlp/glove/tree/main.
 
+    Args:
+        embed_name (str): The name of the pretrained GloVe embedding. Defaults to None.
+        cache_dir (str, optional): Path to a directory for storing cached embeddings. Defaults to None.
+
     Returns:
-        str: Path to the cached or downloaded embedding file.
+        str: Path to the file that contains the cached embeddings.
     """
-    cached_embed_file = f"{cache_dir}/{embed_file}.txt"
+    cache_dir = ".vector_cache" if cache_dir is None else cache_dir
+    cached_embed_file = f"{cache_dir}/{embed_name}.txt"
     if os.path.isfile(cached_embed_file):
         return cached_embed_file
     os.makedirs(cache_dir, exist_ok=True)
 
-    remote_embed_file = re.sub(r"6B.*", "6B", embed_file) + ".zip"
+    remote_embed_file = re.sub(r"6B.*", "6B", embed_name) + ".zip"
     url = f"https://huggingface.co/stanfordnlp/glove/resolve/main/{remote_embed_file}"
-    logging.info(f"Downloading pretrained embedding from {url}.")
+    logging.info(f"Downloading pretrained embeddings from {url}.")
     try:
         zip_file, _ = urlretrieve(url, f"{cache_dir}/{remote_embed_file}")
         with zipfile.ZipFile(zip_file, "r") as zf:
@@ -459,5 +467,5 @@ def _download_pretrained_embedding(embed_file, cache_dir=None):
     except Exception as e:
         os.remove(zip_file)
         raise e
-
+    logging.info(f"Downloaded pretrained embeddings {embed_name} to {cached_embed_file}.")
     return cached_embed_file
