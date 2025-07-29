@@ -389,9 +389,9 @@ def load_or_build_label(datasets, label_file=None, include_test_labels=False):
 
 
 def get_embedding_weights_from_file(word_dict, embed_file, silent=False, cache_dir=None):
-    """Obtain the word embeddings from file. If the word exists in the embedding file, 
+    """Obtain the word embeddings from file. If the word exists in the embedding file,
     load the pretrained word embedding. Otherwise, assign a zero vector to that word.
-    If the given `embed_file` is the name of a pretrained GloVe embedding, the function 
+    If the given `embed_file` is the name of a pretrained GloVe embedding, the function
     will first download the corresponding file.
 
     Args:
